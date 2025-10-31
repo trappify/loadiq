@@ -107,9 +107,10 @@ def handle_detect(args: argparse.Namespace) -> None:
     if not segments:
         return
 
-    total_energy = sum(seg.energy_kwh for seg in segments)
+    total_energy_raw = sum(seg.energy_kwh for seg in segments)
+    total_energy_clamped = sum(seg.clamped_energy_kwh for seg in segments)
     avg_duration = sum(seg.duration.total_seconds() for seg in segments) / len(segments) / 60
-    print(f"Total energy (net contribution): {total_energy:.2f} kWh")
+    print(f"Total energy (net contribution): {total_energy_raw:.2f} kWh | clamped: {total_energy_clamped:.2f} kWh")
     print(f"Average duration: {avg_duration:.1f} minutes")
 
     top = sorted(segments, key=lambda seg: seg.mean_power_w, reverse=True)[: min(5, len(segments))]
@@ -120,7 +121,7 @@ def handle_detect(args: argparse.Namespace) -> None:
             spike_note = f" (spike {seg.spike_energy_kwh:.3f} kWh)"
         print(
             f"  {seg.start.isoformat()} -> {seg.end.isoformat()} | "
-            f"{seg.mean_power_w:.0f} W mean, {seg.energy_kwh:.2f} kWh{spike_note}"
+            f"{seg.mean_power_w:.0f} W mean, raw {seg.energy_kwh:.2f} kWh, clamped {seg.clamped_energy_kwh:.2f} kWh{spike_note}"
         )
 
     if args.json:

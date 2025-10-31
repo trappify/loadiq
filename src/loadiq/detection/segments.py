@@ -24,6 +24,7 @@ class DetectedSegment:
     temperature_c: Optional[float]
     spike_energy_kwh: float = 0.0
     has_spike: bool = False
+    clamped_energy_kwh: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -36,6 +37,7 @@ class DetectedSegment:
             "temperature_c": self.temperature_c,
             "spike_energy_kwh": self.spike_energy_kwh,
             "has_spike": self.has_spike,
+            "clamped_energy_kwh": self.clamped_energy_kwh,
         }
 
 
@@ -236,6 +238,10 @@ def detect_heatpump_segments(
             sample_seconds,
             config.spike_min_duration_s,
         )
+        clamped_series = window["net_w"].clip(upper=reference_power + tolerance)
+        clamped_energy_kwh = 0.0
+        if energy_factor:
+            clamped_energy_kwh = float(clamped_series.sum() * energy_factor / 1000.0)
         temp_mean = window.get("outdoor_temp_c").mean() if "outdoor_temp_c" in window else None
 
         segments.append(
@@ -249,6 +255,7 @@ def detect_heatpump_segments(
                 temperature_c=float(temp_mean) if temp_mean is not None else None,
                 spike_energy_kwh=spike_energy_kwh,
                 has_spike=has_spike,
+                clamped_energy_kwh=clamped_energy_kwh,
             )
         )
 
@@ -279,6 +286,10 @@ def detect_heatpump_segments(
                 sample_seconds,
                 config.spike_min_duration_s,
             )
+            clamped_series = window["net_w"].clip(upper=reference_power + tolerance)
+            clamped_energy_kwh = 0.0
+            if energy_factor:
+                clamped_energy_kwh = float(clamped_series.sum() * energy_factor / 1000.0)
             temp_mean = window.get("outdoor_temp_c").mean() if "outdoor_temp_c" in window else None
 
             segments.append(
@@ -292,6 +303,7 @@ def detect_heatpump_segments(
                     temperature_c=float(temp_mean) if temp_mean is not None else None,
                     spike_energy_kwh=spike_energy_kwh,
                     has_spike=has_spike,
+                    clamped_energy_kwh=clamped_energy_kwh,
                 )
             )
 
