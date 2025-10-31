@@ -115,9 +115,12 @@ def handle_detect(args: argparse.Namespace) -> None:
     top = sorted(segments, key=lambda seg: seg.mean_power_w, reverse=True)[: min(5, len(segments))]
     print("Top segments by mean power:")
     for seg in top:
+        spike_note = ""
+        if getattr(seg, "has_spike", False):
+            spike_note = f" (spike {seg.spike_energy_kwh:.3f} kWh)"
         print(
             f"  {seg.start.isoformat()} -> {seg.end.isoformat()} | "
-            f"{seg.mean_power_w:.0f} W mean, {seg.energy_kwh:.2f} kWh"
+            f"{seg.mean_power_w:.0f} W mean, {seg.energy_kwh:.2f} kWh{spike_note}"
         )
 
     if args.json:
