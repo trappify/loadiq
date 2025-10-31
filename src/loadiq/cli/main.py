@@ -119,9 +119,11 @@ def handle_detect(args: argparse.Namespace) -> None:
         spike_note = ""
         if getattr(seg, "has_spike", False):
             spike_note = f" (spike {seg.spike_energy_kwh:.3f} kWh)"
+        clamped_peak = getattr(seg, "clamped_peak_w", seg.peak_power_w)
         print(
             f"  {seg.start.isoformat()} -> {seg.end.isoformat()} | "
-            f"{seg.mean_power_w:.0f} W mean, raw {seg.energy_kwh:.2f} kWh, clamped {seg.clamped_energy_kwh:.2f} kWh{spike_note}"
+            f"mean {seg.mean_power_w:.0f} W, peak {clamped_peak:.0f} W (clamped), "
+            f"raw {seg.energy_kwh:.2f} kWh, clamped {seg.clamped_energy_kwh:.2f} kWh{spike_note}"
         )
 
     if args.json:

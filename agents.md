@@ -12,6 +12,7 @@
 - `data/processed/heatpump_segments_recent.csv`, `..._current.csv` – ad-hoc slices used during investigation.
 - `data/logs/manual_observations.csv` – manual pump status reports logged when the user shares real-world observations (timestamps stored in CET + UTC).
 - `tests/` – pytest suite covering config, data access, preprocessing, detectors, and CLI.
+- `loadiqctl` – new Click-based CLI (`loadiqctl runs`, `loadiqctl stats`, etc.); enable completion with `eval "$(_LOADIQCTL_COMPLETE=bash_source loadiqctl)"` (or zsh equivalent).
 
 ## Running the Pipeline
 ```bash

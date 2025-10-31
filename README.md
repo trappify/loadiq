@@ -35,6 +35,35 @@ LoadIQ is a modular toolkit for analysing household energy consumption and isola
    loadiq detect --since 2025-10-28T00:00Z --until 2025-10-31T00:00Z
    ```
 
+### New Interactive CLI (`loadiqctl`)
+
+Install editable deps (as above) and use the richer control CLI:
+
+```bash
+# Show recent runs (default 3 hours)
+loadiqctl runs --config config/local.yaml
+
+# Detect a custom window and write CSV
+loadiqctl detect --since 2025-10-31T00:00Z --hours 12 --output data/report.csv
+
+# View 30-day stats (raw/clamped energy, durations, temps)
+loadiqctl stats --days 30
+```
+
+Tab completion is available via Click. Example for Bash (add to `.bashrc`):
+
+```bash
+eval "$(_LOADIQCTL_COMPLETE=bash_source loadiqctl)"
+```
+
+For Zsh:
+
+```bash
+eval "$(_LOADIQCTL_COMPLETE=zsh_source loadiqctl)"
+```
+
+Run `loadiqctl --help` for command summaries.
+
 ## Configuration
 LoadIQ expects connection and entity details either via CLI options or a YAML/JSON configuration file. The core fields are:
 - `influx.url`, `influx.token`, `influx.org`, `influx.bucket`

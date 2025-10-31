@@ -18,6 +18,7 @@ dependencies = [
   "pandas>=2.1",
   "pydantic>=2.8",
   "pyyaml>=6.0",
+  "click>=8.1",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +34,7 @@ dev = [
 
 [project.scripts]
 loadiq = "loadiq.cli.main:main"
+loadiqctl = "loadiq.cli.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/loadiq"]

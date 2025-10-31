@@ -96,3 +96,4 @@ def test_detect_heatpump_segments_spike_flag():
     assert seg.has_spike is True
     assert seg.spike_energy_kwh > 0
     assert seg.clamped_energy_kwh < seg.energy_kwh
+    assert seg.clamped_peak_w < seg.peak_power_w

@@ -25,6 +25,7 @@ class DetectedSegment:
     spike_energy_kwh: float = 0.0
     has_spike: bool = False
     clamped_energy_kwh: float = 0.0
+    clamped_peak_w: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -38,6 +39,7 @@ class DetectedSegment:
             "spike_energy_kwh": self.spike_energy_kwh,
             "has_spike": self.has_spike,
             "clamped_energy_kwh": self.clamped_energy_kwh,
+            "clamped_peak_w": self.clamped_peak_w,
         }
 
 
@@ -242,6 +244,7 @@ def detect_heatpump_segments(
         clamped_energy_kwh = 0.0
         if energy_factor:
             clamped_energy_kwh = float(clamped_series.sum() * energy_factor / 1000.0)
+        clamped_peak_w = float(clamped_series.max()) if not clamped_series.empty else 0.0
         temp_mean = window.get("outdoor_temp_c").mean() if "outdoor_temp_c" in window else None
 
         segments.append(
@@ -256,6 +259,7 @@ def detect_heatpump_segments(
                 spike_energy_kwh=spike_energy_kwh,
                 has_spike=has_spike,
                 clamped_energy_kwh=clamped_energy_kwh,
+                clamped_peak_w=clamped_peak_w,
             )
         )
 
@@ -290,6 +294,7 @@ def detect_heatpump_segments(
             clamped_energy_kwh = 0.0
             if energy_factor:
                 clamped_energy_kwh = float(clamped_series.sum() * energy_factor / 1000.0)
+            clamped_peak_w = float(clamped_series.max()) if not clamped_series.empty else 0.0
             temp_mean = window.get("outdoor_temp_c").mean() if "outdoor_temp_c" in window else None
 
             segments.append(
@@ -304,6 +309,7 @@ def detect_heatpump_segments(
                     spike_energy_kwh=spike_energy_kwh,
                     has_spike=has_spike,
                     clamped_energy_kwh=clamped_energy_kwh,
+                    clamped_peak_w=clamped_peak_w,
                 )
             )
 
