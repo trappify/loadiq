@@ -1,0 +1,39 @@
+# Example configuration for LoadIQ
+influx:
+  url: "http://192.168.10.5:8086"
+  token: "REPLACE_ME"
+  org: "08788647b489578a"
+  bucket: "HomeAssistant"
+  verify_ssl: false
+entities:
+  house_power:
+    measurement: "W"
+    field: "value"
+    domain: "sensor"
+    entity_id: "power_norderangsvagen_32"
+    aggregate_every: "10s"
+  outdoor_temp:
+    measurement: "°C"
+    field: "value"
+    domain: "sensor"
+    entity_id: "ventilation_outdoor_inlet_temperature"
+    aggregate_every: "60s"
+  known_loads:
+    - name: "ev"
+      entity:
+        measurement: "W"
+        field: "value"
+        domain: "sensor"
+        entity_id: "nerd_juicer_power_w"
+        aggregate_every: "10s"
+      subtract_from_house: true
+detection:
+  min_power_w: 2200
+  max_power_w: 3500
+  min_duration_s: 420
+  max_duration_s: 3600
+  min_off_duration_s: 600
+  smoothing_window: 6
+  baseline_window: 180
+  start_delta_w: 500
+  stop_delta_w: 500

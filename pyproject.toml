@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loadiq"
+version = "0.1.0"
+description = "Modular toolkit for residential load analytics and NILM experiments."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "Andreas Trappland", email = "andreas@trappland.se" },
+]
+dependencies = [
+  "influxdb-client>=1.49",
+  "numpy>=2.0",
+  "pandas>=2.1",
+  "pydantic>=2.8",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+viz = [
+  "matplotlib>=3.9",
+  "seaborn>=0.13",
+]
+dev = [
+  "ipykernel>=6.29",
+  "ruff>=0.9",
+  "pytest>=8.3",
+]
+
+[project.scripts]
+loadiq = "loadiq.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/loadiq"]

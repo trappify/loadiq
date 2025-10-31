@@ -1,0 +1,49 @@
+influx:
+  url: http://192.168.10.5:8086
+  token: 7Fg_svnHdPj1oEL08vmpOYERR_qOsUiAa93UIx9faeRh61MQrTfjcIvCMWT2I6alyJSk7Z16ARupCF2p6wzW2Q==
+  org: 08788647b489578a
+  bucket: HomeAssistant
+  verify_ssl: false
+entities:
+  house_power:
+    measurement: W
+    field: value
+    domain: sensor
+    entity_id: power_norderangsvagen_32
+    aggregate_every: 10s
+  outdoor_temp:
+    measurement: "\xB0C"
+    field: value
+    domain: sensor
+    entity_id: ventilation_outdoor_inlet_temperature
+    aggregate_every: 60s
+  known_loads:
+  - name: ev
+    entity:
+      measurement: W
+      field: value
+      domain: sensor
+      entity_id: nerd_juicer_power_w
+      aggregate_every: 10s
+    subtract_from_house: true
+  - name: garage_heatpump
+    entity:
+      measurement: W
+      field: value
+      domain: sensor
+      entity_id: hppm_g_em0_power
+      aggregate_every: 10s
+    subtract_from_house: true
+detection:
+  min_power_w: 2200
+  max_power_w: 5000
+  min_duration_s: 420
+  max_duration_s: 3600
+  min_off_duration_s: 600
+  smoothing_window: 6
+  baseline_window: 180
+  start_delta_w: 400
+  stop_delta_w: 400
+  spike_tolerance_ratio: 0.25
+  spike_tolerance_w: 400
+  spike_min_duration_s: 30

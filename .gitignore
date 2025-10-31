@@ -1,0 +1,22 @@
+# General
+__pycache__/
+*.py[cod]
+*.DS_Store
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environments
+.env
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Data
+data/**/*.csv
+data/**/*.parquet
+data/**/*.json
+
+# Notebooks
+.ipynb_checkpoints/
