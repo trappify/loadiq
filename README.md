@@ -40,15 +40,24 @@ LoadIQ is a modular toolkit for analysing household energy consumption and isola
 Install editable deps (as above) and use the richer control CLI:
 
 ```bash
-# Show recent runs (default 3 hours)
-loadiqctl runs --config config/local.yaml
+# Show recent runs (default 3 hours). The ./loadiq wrapper is equivalent to loadiqctl.
+./loadiq runs last-1h
+
+# Quick window expressions (the WINDOW argument is optional)
+loadiqctl runs last-1h                # last hour
+loadiqctl runs -6h..-3h               # relative range
+loadiqctl runs 2024-02-01..2024-02-02 # absolute range
+
+# Each table now includes a "Total" row summarizing runtime and energy.
 
 # Detect a custom window and write CSV
-loadiqctl detect --since 2025-10-31T00:00Z --hours 12 --output data/report.csv
+loadiqctl detect 2025-10-31T00:00Z..2025-10-31T12:00Z --output data/report.csv
 
 # View 30-day stats (raw/clamped energy, durations, temps)
 loadiqctl stats --days 30
 ```
+
+Relative shorthands work both in the WINDOW argument and the advanced flags (`--since`, `--until`, `--window`) if you need fine-grained control.
 
 Tab completion is available via Click. Example for Bash (add to `.bashrc`):
 
@@ -65,7 +74,16 @@ eval "$(_LOADIQCTL_COMPLETE=zsh_source loadiqctl)"
 Run `loadiqctl --help` for command summaries.
 
 ## Configuration
-LoadIQ expects connection and entity details either via CLI options or a YAML/JSON configuration file. The core fields are:
+LoadIQ expects connection and entity details either via CLI options or a YAML/JSON configuration file. The CLI discovers the configuration in this order:
+
+- `--config PATH` if provided
+- `LOADIQ_CONFIG` environment variable
+- `config/local.yaml` (current directory or project root)
+- `config/example.yaml`
+- `~/.config/loadiq/config.yaml` or `~/.loadiq/config.yaml`
+- Falling back to `LOADIQ_*` environment variables (`LOADIQ_INFLUX_URL`, `LOADIQ_INFLUX_TOKEN`, `LOADIQ_INFLUX_ORG`, `LOADIQ_INFLUX_BUCKET`, `LOADIQ_HOUSE_ENTITY`, optional known load / outdoor IDs)
+
+The core fields are:
 - `influx.url`, `influx.token`, `influx.org`, `influx.bucket`
 - `entities.house_power`, `entities.outdoor_temp`, `entities.known_loads` (list of sensors like EV chargers)
 - `detection.*` entries (power thresholds, duration/off windows, delta triggers)

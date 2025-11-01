@@ -37,8 +37,10 @@ def assemble_power_frame(
     if temp is not None and not temp.empty:
         frame["outdoor_temp_c"] = _resample_series(temp["value"], freq).ffill(limit=180)
 
+    frame = frame.infer_objects(copy=False)
     frame = frame.interpolate(limit=interpolation_limit)
     frame = frame.ffill()
+    frame = frame.infer_objects(copy=False)
     frame = frame.dropna(subset=["house_w"])
 
     load_columns = [col for col in frame.columns if col.startswith("load_")]

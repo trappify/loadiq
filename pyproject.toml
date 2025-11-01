@@ -33,8 +33,9 @@ dev = [
 ]
 
 [project.scripts]
-loadiq = "loadiq.cli.main:main"
+loadiq = "loadiq.cli.app:main"
 loadiqctl = "loadiq.cli.app:main"
+loadiq-legacy = "loadiq.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/loadiq"]
