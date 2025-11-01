@@ -98,4 +98,4 @@ See `src/loadiq/config.py` for the full schema.
 - [ ] Support additional data sources (MQTT, file-based replay) via the `PowerDataSource` interface.
 
 ## License
-MIT © Andreas Trappland
+MIT © trappify

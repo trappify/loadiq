@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
-  { name = "Andreas Trappland", email = "andreas@trappland.se" },
+  { name = "trappify" },
 ]
 dependencies = [
   "influxdb-client>=1.49",
