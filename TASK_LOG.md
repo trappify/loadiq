@@ -7,3 +7,7 @@
 - ✅ 2025-02-14: Let the CLI auto-discover configs (files or environment) so `--config` is optional.
 - ✅ 2025-02-14: Add friendly suggestions when WINDOW expressions are invalid so users see helpful guidance.
 - ✅ 2025-02-14: Append totals rows to CLI tables so runtime and energy sums are always visible.
+- ✅ 2025-02-14: Added backend selection support so the CLI can detect Home Assistant-backed configs.
+- ✅ 2025-02-14: Scaffolded the Home Assistant integration (config flow, dev stack, tests, HACS metadata).
+- ✅ 2025-02-14: Ensure the dev Home Assistant stack auto-installs HACS during bootstrap.
+- ✅ 2025-02-14: Bundle the tagged GitHub release as a pip requirement so HA installs the `loadiq` package automatically.

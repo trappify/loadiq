@@ -18,5 +18,8 @@ data/**/*.csv
 data/**/*.parquet
 data/**/*.json
 
+# Dev Home Assistant runtime files
+ha_dev/config/
+
 # Notebooks
 .ipynb_checkpoints/

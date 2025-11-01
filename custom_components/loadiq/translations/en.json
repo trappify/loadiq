@@ -1,0 +1,78 @@
+{
+  "title": "LoadIQ",
+  "config": {
+    "step": {
+      "user": {
+        "title": "LoadIQ",
+        "description": "Choose how LoadIQ should pull time series data.",
+        "data": {
+          "backend": "Data source"
+        }
+      },
+      "homeassistant": {
+        "title": "Home Assistant sensors",
+        "description": "Select sensors exposed by Home Assistant for LoadIQ to analyse.",
+        "data": {
+          "house_sensor": "Whole-house power sensor",
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "known_loads": "Known load sensors (optional)"
+        }
+      },
+      "influx": {
+        "title": "InfluxDB connection",
+        "description": "Connect directly to InfluxDB and choose which entities to read.",
+        "data": {
+          "url": "URL",
+          "token": "Token",
+          "org": "Organization",
+          "bucket": "Bucket",
+          "verify_ssl": "Verify SSL certificates",
+          "timeout": "Timeout (seconds)",
+          "aggregate_window": "Aggregation window",
+          "house_sensor": "Whole-house power sensor",
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "known_loads": "Known load sensors (optional)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LoadIQ options",
+        "description": "Update the sensors or connection details for LoadIQ."
+      },
+      "homeassistant": {
+        "title": "Home Assistant sensors",
+        "data": {
+          "house_sensor": "Whole-house power sensor",
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "known_loads": "Known load sensors (optional)"
+        }
+      },
+      "influx": {
+        "title": "InfluxDB connection",
+        "data": {
+          "url": "URL",
+          "token": "Token",
+          "org": "Organization",
+          "bucket": "Bucket",
+          "verify_ssl": "Verify SSL certificates",
+          "timeout": "Timeout (seconds)",
+          "aggregate_window": "Aggregation window",
+          "house_sensor": "Whole-house power sensor",
+          "outdoor_sensor": "Outdoor temperature sensor (optional)",
+          "known_loads": "Known load sensors (optional)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "backend": {
+      "options": {
+        "homeassistant": "Home Assistant sensors",
+        "influxdb": "InfluxDB"
+      }
+    }
+  }
+}

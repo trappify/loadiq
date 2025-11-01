@@ -59,6 +59,12 @@ loadiqctl stats --days 30
 
 Relative shorthands work both in the WINDOW argument and the advanced flags (`--since`, `--until`, `--window`) if you need fine-grained control.
 
+## Home Assistant Integration (preview)
+- Enable the development stack with `scripts/ha up` (runs on http://localhost:8125 with `loadiq` / `loadiq`). Use `scripts/ha down` to stop, or `scripts/ha reset` if you explicitly want a fresh config.
+- The custom component lives in `custom_components/loadiq` and is already wired for HACS (see `hacs.json`). The config flow lets you pick between direct InfluxDB access and native Home Assistant sensors, with an options flow for edits.
+- Tests covering the config flow live in `tests/test_integration_config_flow.py`. Run the full suite with `.venv/bin/pytest` after making changes.
+- HACS is downloaded automatically during `scripts/ha up`/`reset`; finish setup via Settings → Devices & Services → “+ Add Integration” → HACS. The integration ships the LoadIQ library in the component itself so no extra pip install is needed.
+
 Tab completion is available via Click. Example for Bash (add to `.bashrc`):
 
 ```bash

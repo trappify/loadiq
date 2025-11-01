@@ -1,0 +1,72 @@
+homeassistant:
+  name: LoadIQ Dev
+  latitude: 60.0
+  longitude: 15.0
+  elevation: 120
+  unit_system: metric
+  currency: SEK
+  time_zone: Europe/Stockholm
+
+default_config:
+
+logger:
+  default: warning
+  logs:
+    custom_components.loadiq: debug
+
+input_number:
+  main_power:
+    name: Total Power
+    min: 0
+    max: 15000
+    step: 10
+    unit_of_measurement: W
+    icon: mdi:flash
+    initial: 4800
+  heat_pump_power:
+    name: Heat Pump Power
+    min: 0
+    max: 6000
+    step: 10
+    unit_of_measurement: W
+    icon: mdi:fire
+    initial: 1800
+  ev_charger_power:
+    name: EV Charger Power
+    min: 0
+    max: 12000
+    step: 10
+    unit_of_measurement: W
+    icon: mdi:car-electric
+    initial: 0
+  outdoor_temperature:
+    name: Outdoor Temperature
+    min: -40
+    max: 40
+    step: 0.5
+    unit_of_measurement: °C
+    icon: mdi:thermometer
+    initial: 0
+
+template:
+  - sensor:
+      - name: "Total Power"
+        unique_id: loadiq_total_power
+        device_class: power
+        unit_of_measurement: W
+        state: "{{ states('input_number.main_power') | float(0) }}"
+      - name: "Heat Pump"
+        unique_id: loadiq_heat_pump
+        device_class: power
+        unit_of_measurement: W
+        state: "{{ states('input_number.heat_pump_power') | float(0) }}"
+      - name: "EV Charger"
+        unique_id: loadiq_ev_charger
+        device_class: power
+        unit_of_measurement: W
+        state: "{{ states('input_number.ev_charger_power') | float(0) }}"
+      - name: "Outdoor Temperature"
+        unique_id: loadiq_outdoor_temp
+        device_class: temperature
+        unit_of_measurement: °C
+        state: "{{ states('input_number.outdoor_temperature') | float(0) }}"

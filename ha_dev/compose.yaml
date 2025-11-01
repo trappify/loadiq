@@ -1,0 +1,13 @@
+services:
+  homeassistant:
+    container_name: loadiq-ha-dev
+    image: ghcr.io/home-assistant/home-assistant:stable
+    user: "${HA_UID:-1000}:${HA_GID:-1000}"
+    environment:
+      - TZ=Europe/Stockholm
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "0.0.0.0:${HA_PORT:-8125}:8123"
+    restart: unless-stopped

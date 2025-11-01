@@ -1,0 +1,8 @@
+{
+  "name": "LoadIQ",
+  "content_in_root": false,
+  "domains": ["loadiq"],
+  "homeassistant": "2024.10.0",
+  "iot_class": ["calculated"],
+  "render_readme": true
+}

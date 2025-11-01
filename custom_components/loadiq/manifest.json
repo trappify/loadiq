@@ -1,0 +1,11 @@
+{
+  "domain": "loadiq",
+  "name": "LoadIQ",
+  "codeowners": ["@trappify"],
+  "version": "0.1.0",
+  "documentation": "https://github.com/trappify/loadiq",
+  "issue_tracker": "https://github.com/trappify/loadiq/issues",
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "calculated"
+}

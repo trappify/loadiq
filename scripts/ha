@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
+export HA_UID="${HA_UID:-$(id -u)}"
+export HA_GID="${HA_GID:-$(id -g)}"
+HA_DIR="${ROOT_DIR}/ha_dev"
+CONFIG_DIR="${HA_DIR}/config"
+TEMPLATE_DIR="${HA_DIR}/template_config"
+
+bootstrap_config() {
+    if [[ ! -d "${CONFIG_DIR}" ]]; then
+        mkdir -p "${CONFIG_DIR}"
+    fi
+    if [[ ! -f "${CONFIG_DIR}/configuration.yaml" ]]; then
+        echo "Bootstrapping Home Assistant config from template..."
+        rm -rf "${CONFIG_DIR:?}/"*
+        cp -R "${TEMPLATE_DIR}/." "${CONFIG_DIR}/"
+        chown -R "$(id -u)":"$(id -g)" "${CONFIG_DIR}"
+    else
+        echo "Home Assistant config already present; keeping existing data (use 'scripts/ha reset' for a clean slate)."
+    fi
+    mkdir -p "${CONFIG_DIR}/.storage"
+    install_hacs
+}
+
+install_hacs() {
+    local target_dir="${CONFIG_DIR}/custom_components"
+    local hacs_dir="${target_dir}/hacs"
+    mkdir -p "${target_dir}"
+    if [[ -d "${hacs_dir}" ]]; then
+        return
+    fi
+    echo "Installing HACS integration into dev stack..."
+    local pycmd="python3"
+    if ! command -v "${pycmd}" >/dev/null 2>&1; then
+        pycmd="python"
+    fi
+    if ! command -v "${pycmd}" >/dev/null 2>&1; then
+        echo "Error: python3 or python is required to download HACS." >&2
+        exit 1
+    fi
+    rm -rf "${hacs_dir}"
+    mkdir -p "${hacs_dir}"
+    if ! HACS_TARGET="${hacs_dir}" "${pycmd}" - <<'PY'
+import io
+import os
+import urllib.request
+import zipfile
+
+URL = "https://github.com/hacs/integration/releases/latest/download/hacs.zip"
+TARGET = os.environ["HACS_TARGET"]
+
+with urllib.request.urlopen(URL, timeout=30) as response:
+    if response.status != 200:
+        raise SystemExit(f"Failed to download HACS: HTTP {response.status}")
+    payload = response.read()
+
+with zipfile.ZipFile(io.BytesIO(payload)) as zf:
+    zf.extractall(TARGET)
+PY
+    then
+        echo "Error: unable to download HACS. Check your network connection." >&2
+        exit 1
+    fi
+    touch "${hacs_dir}/.loadiq-dev"
+}
+
+case "${1:-}" in
+    up)
+        bootstrap_config
+        ;;
+    reset)
+        rm -rf "${CONFIG_DIR}"
+        mkdir -p "${CONFIG_DIR}"
+        bootstrap_config
+        echo "Config reset to template."
+        exit 0
+        ;;
+esac
+
+cd "${HA_DIR}"
+
+subcommand="${1:-up}"
+shift || true
+
+case "${subcommand}" in
+  up)
+    exec docker compose up "$@"
+    ;;
+  down)
+    exec docker compose down "$@"
+    ;;
+  logs)
+    exec docker compose logs -f "$@"
+    ;;
+  *)
+    echo "Usage: scripts/ha {up|down|logs|reset} [extra docker compose args]" >&2
+    exit 1
+    ;;
+ esac

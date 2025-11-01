@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+pytest_plugins = ("pytest_homeassistant_custom_component",)
+
 
 # Ensure the src directory is on sys.path for imports during testing.
 src_path = Path(__file__).resolve().parents[1] / "src"

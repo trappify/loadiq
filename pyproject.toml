@@ -13,7 +13,7 @@ authors = [
   { name = "trappify" },
 ]
 dependencies = [
-  "influxdb-client>=1.49",
+  "influxdb-client>=1.48",
   "numpy>=2.0",
   "pandas>=2.1",
   "pydantic>=2.8",
@@ -30,6 +30,8 @@ dev = [
   "ipykernel>=6.29",
   "ruff>=0.9",
   "pytest>=8.3",
+  "homeassistant>=2024.10.0",
+  "pytest-homeassistant-custom-component>=0.13.130",
 ]
 
 [project.scripts]
@@ -39,3 +41,6 @@ loadiq-legacy = "loadiq.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/loadiq"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "auth_provider.homeassistant",
+  "data": {
+    "users": [
+      {
+        "username": "loadiq",
+        "password": "JDJiJDEyJFZiWnhhRkhaMm5vbU50T0tYRmxDdk9RdTc0LjJmMUNyWVhzZWpsd2FleWdtSnlxdWlVR2Yy"
+      }
+    ]
+  }
+}

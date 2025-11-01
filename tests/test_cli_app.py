@@ -153,7 +153,7 @@ def test_runs_surfaces_connection_errors(monkeypatch):
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    monkeypatch.setattr(cli_module, "InfluxDBSource", BoomSource)
+    monkeypatch.setattr(cli_module, "create_power_data_source", lambda cfg, hass=None: BoomSource())
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -181,7 +181,7 @@ def test_invalid_window_suggests_options(monkeypatch):
         def fetch_series(self, *args, **kwargs):
             raise AssertionError("fetch_series should not be called for invalid window")
 
-    monkeypatch.setattr(cli_module, "InfluxDBSource", DummySource)
+    monkeypatch.setattr(cli_module, "create_power_data_source", lambda cfg, hass=None: DummySource())
     runner = CliRunner()
     result = runner.invoke(cli, ["runs", "th"])
     assert result.exit_code != 0
