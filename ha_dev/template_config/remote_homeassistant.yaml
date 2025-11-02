@@ -1,0 +1,18 @@
+# Configure remote Home Assistant instances that should mirror sensors into the
+# dev environment. By default nothing is connected; to activate, first uncomment
+# the include in `configuration.yaml`, then replace the placeholder structure
+# below with one or more entries referencing your production HA.
+#
+# Example:
+# instances:
+#   - host: !secret remote_ha_host
+#     port: !secret remote_ha_port
+#     secure: !secret remote_ha_secure
+#     access_token: !secret remote_ha_token
+#     include:
+#       entities:
+#         - sensor.total_power
+#         - sensor.ev_charger
+#         - sensor.outdoor_temperature
+
+instances: []

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from homeassistant.config_entries import ConfigEntry
@@ -42,13 +42,17 @@ from .const import (
     CONF_INFLUX_VERIFY_SSL,
     CONF_KNOWN_LOADS,
     CONF_OUTDOOR_SENSOR,
+    CONF_RECENT_RUNS_WINDOW_HOURS,
     DATA_CONFIG,
+    DATA_STORAGE,
     DEFAULT_AGGREGATE_WINDOW,
+    DEFAULT_RECENT_RUNS_WINDOW_HOURS,
     DOMAIN,
     DOMAIN_TITLE,
     LOOKBACK_WINDOW,
     UPDATE_INTERVAL,
 )
+from .storage import LoadIQStorage, LABEL_HEATPUMP, LABEL_OTHER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +66,7 @@ class CoordinatorData:
     is_active: bool
     avg_runtime_min: float
     active_segment: DetectedSegment | None
+    active_confidence: str
     window_start: pd.Timestamp
     window_end: pd.Timestamp
 
@@ -132,10 +137,21 @@ def _build_runtime_config(raw: Dict[str, Any]) -> LoadIQConfig:
 class LoadIQDataCoordinator(DataUpdateCoordinator[CoordinatorData]):
     """Coordinates data refreshes for LoadIQ sensors."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, storage: Optional[LoadIQStorage] = None) -> None:
         self.entry = entry
+        self._storage = storage
         raw_config = entry.options or entry.data
         self._config = _build_runtime_config(raw_config)
+        recent_hours = raw_config.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS)
+        try:
+            recent_hours_val = float(recent_hours)
+        except (TypeError, ValueError):
+            recent_hours_val = float(DEFAULT_RECENT_RUNS_WINDOW_HOURS)
+        self._recent_runs_window = pd.Timedelta(hours=max(recent_hours_val, 1.0))
+        min_duration = float(self._config.detection.min_duration_s)
+        self._activation_confirm_s = max(90.0, min(180.0, min_duration / 2 if min_duration else 120.0))
+        self._pending_active_since: pd.Timestamp | None = None
+        self._latest_segments: List[DetectedSegment] = []
         super().__init__(
             hass,
             _LOGGER,
@@ -181,35 +197,131 @@ class LoadIQDataCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 )
 
             if house.empty:
+                _LOGGER.debug(
+                    "No samples for house sensor %s between %s and %s",
+                    self._config.entities.house_power.entity_id,
+                    window_start,
+                    window_end,
+                )
                 raise UpdateFailed("No samples retrieved for house power sensor")
 
             frame = assemble_power_frame(house, known, temp, freq=self._config.entities.house_power.aggregate_every)
+            _LOGGER.debug(
+                "LoadIQ frame stats: rows=%s net_last=%.1f min=%.1f max=%.1f",
+                len(frame),
+                float(frame["net_w"].iloc[-1]) if not frame.empty else float("nan"),
+                float(frame["net_w"].min()) if not frame.empty else float("nan"),
+                float(frame["net_w"].max()) if not frame.empty else float("nan"),
+            )
             frame = add_derived_columns(
                 frame,
                 smoothing_window=self._config.detection.smoothing_window,
                 baseline_window=self._config.detection.baseline_window,
             )
             segments = detect_heatpump_segments(frame, self._config.detection)
+            for seg in segments:
+                self._classify_segment(seg)
+            if segments:
+                last = segments[-1]
+                _LOGGER.debug(
+                    "LoadIQ detected %s segments (last: start=%s end=%s mean=%.1f peak=%.1f)",
+                    len(segments),
+                    last.start,
+                    last.end,
+                    last.mean_power_w,
+                    last.peak_power_w,
+                )
             current_power = float(frame["net_w"].iloc[-1]) if not frame.empty else 0.0
             now_ts = window_end
+
+            sample_seconds = 0.0
+            if "sample_interval_s" in frame.columns and not frame.empty:
+                try:
+                    sample_seconds = float(frame["sample_interval_s"].iloc[-1])
+                except (TypeError, ValueError):
+                    sample_seconds = 0.0
+            aggregate_str = self._config.entities.house_power.aggregate_every
+            try:
+                aggregate_td = pd.to_timedelta(aggregate_str)
+            except (ValueError, TypeError):
+                aggregate_td = pd.Timedelta(seconds=max(sample_seconds, 1.0) if sample_seconds else 10.0)
+            if not sample_seconds or sample_seconds <= 0:
+                sample_seconds = max(aggregate_td.total_seconds(), 1.0)
+
             active_segment = next((seg for seg in segments if seg.start <= now_ts <= seg.end), None)
-            aggregate_td = pd.Timedelta(self._config.entities.house_power.aggregate_every)
+            if active_segment is not None:
+                self._pending_active_since = None
+
             if active_segment is None and segments:
                 last_segment = segments[-1]
-                if now_ts - last_segment.end <= aggregate_td and current_power >= self._config.detection.min_power_w:
+                if now_ts - last_segment.end <= aggregate_td and current_power >= self._config.detection.min_power_w * 0.9:
                     active_segment = last_segment
-            is_active = bool(active_segment) or current_power >= self._config.detection.min_power_w
+
+            pending_segment = None
+            if active_segment is None:
+                pending_segment = self._build_pending_segment(frame, now_ts, sample_seconds)
+                if pending_segment is not None:
+                    self._classify_segment(pending_segment)
+                    _LOGGER.debug(
+                        "LoadIQ pending segment candidate: start=%s duration=%.1fs mean=%.1f peak=%.1f class=%s conf=%.2f",
+                        pending_segment.start,
+                        pending_segment.duration.total_seconds(),
+                        pending_segment.mean_power_w,
+                        pending_segment.peak_power_w,
+                        pending_segment.classification,
+                        pending_segment.confidence,
+                    )
+
+            has_positive = self._storage.has_positive_training() if self._storage else False
+
+            confidence_str = "inactive"
+            is_active = False
+
+            def _fallback_active() -> bool:
+                return current_power >= self._config.detection.min_power_w
+
+            if active_segment is not None:
+                confidence_str = self._format_confidence(active_segment)
+                if active_segment.classification == LABEL_HEATPUMP:
+                    is_active = True
+                elif active_segment.classification in {"uncertain", "unknown"}:
+                    is_active = (active_segment.confidence >= 0.5) or (not has_positive and _fallback_active())
+                else:
+                    is_active = False
+            elif pending_segment is not None:
+                confidence_str = self._format_confidence(pending_segment)
+                if pending_segment.classification == LABEL_HEATPUMP and pending_segment.confidence >= 0.6:
+                    is_active = True
+                    active_segment = pending_segment
+                elif not has_positive and _fallback_active():
+                    is_active = True
+                    active_segment = pending_segment
+                else:
+                    is_active = False
+            else:
+                if not has_positive and _fallback_active():
+                    confidence_str = "heuristic"
+                    is_active = True
+                else:
+                    confidence_str = "inactive"
+                    is_active = False
+
+            if pending_segment is not None and is_active and pending_segment not in segments:
+                segments.append(pending_segment)
+
             avg_runtime_min = (
                 sum(seg.duration.total_seconds() for seg in segments) / 60 / len(segments)
                 if segments
                 else 0.0
             )
+            self._latest_segments = segments
             return CoordinatorData(
                 segments=segments,
                 current_power_w=current_power,
                 is_active=is_active,
                 avg_runtime_min=avg_runtime_min,
                 active_segment=active_segment,
+                active_confidence=confidence_str,
                 window_start=window_start,
                 window_end=window_end,
             )
@@ -220,3 +332,157 @@ class LoadIQDataCoordinator(DataUpdateCoordinator[CoordinatorData]):
             raise
         except Exception as exc:  # pragma: no cover - best effort logging
             raise UpdateFailed(str(exc)) from exc
+
+    def _classify_segment(self, segment: DetectedSegment) -> DetectedSegment:
+        if self._storage is not None:
+            classification, confidence = self._storage.classify_segment(segment)
+        else:
+            classification, confidence = ("unknown", 0.0)
+        segment.classification = classification
+        segment.confidence = confidence
+        return segment
+
+    @staticmethod
+    def _format_confidence(segment: DetectedSegment) -> str:
+        return f"{segment.classification}:{segment.confidence:.2f}"
+
+    def _build_pending_segment(
+        self,
+        frame: pd.DataFrame,
+        window_end: pd.Timestamp,
+        sample_seconds: float,
+    ) -> Optional[DetectedSegment]:
+        detection = self._config.detection
+        if frame.empty or sample_seconds <= 0.0:
+            self._pending_active_since = None
+            return None
+
+        confirm_window = min(self._activation_confirm_s, detection.min_duration_s * 0.3)
+        window_samples = max(1, int(round(confirm_window / sample_seconds)))
+        recent = frame.iloc[-window_samples:]
+        _LOGGER.debug(
+            "LoadIQ pending window: samples=%s confirm_window=%.1fs net[min=%.1f max=%.1f]",
+            len(recent),
+            confirm_window,
+            float(recent["net_w"].min()) if not recent.empty else float("nan"),
+            float(recent["net_w"].max()) if not recent.empty else float("nan"),
+        )
+        if recent.empty:
+            self._pending_active_since = None
+            return None
+
+        smoothed = recent["net_smoothed_w"]
+        sustained = bool((smoothed >= detection.min_power_w * 0.9).all())
+
+        start_rise = float(smoothed.max() - smoothed.min()) if not recent.empty else 0.0
+        current_drop = float(smoothed.max() - smoothed.iloc[-1]) if not recent.empty else 0.0
+        avg_power = float(smoothed.mean()) if not recent.empty else 0.0
+        prev_pending = self._pending_active_since
+        _LOGGER.debug(
+            "LoadIQ pending stats: sustained=%s rise=%.1f drop=%.1f prev_pending=%s thresholds(min_power=%.0f start_delta=%.0f stop_delta=%.0f)",
+            sustained,
+            start_rise,
+            current_drop,
+            prev_pending,
+            detection.min_power_w,
+            detection.start_delta_w,
+            detection.stop_delta_w,
+        )
+
+        if not sustained:
+            self._pending_active_since = None
+            return None
+
+        if prev_pending is None and start_rise < detection.start_delta_w * 0.5:
+            if avg_power < detection.min_power_w * 1.1:
+                self._pending_active_since = None
+                return None
+            _LOGGER.debug(
+                "LoadIQ promoting sustained high load without delta: avg_power=%.1f",
+                avg_power,
+            )
+
+        if smoothed.iloc[-1] < detection.min_power_w * 0.7 and current_drop >= detection.stop_delta_w * 0.5:
+            self._pending_active_since = None
+            return None
+
+        start_candidate = recent.index[0]
+        if self._pending_active_since is None or start_candidate < self._pending_active_since:
+            _LOGGER.debug(
+                "LoadIQ pending start update: prev=%s candidate=%s",
+                self._pending_active_since,
+                start_candidate,
+            )
+            self._pending_active_since = start_candidate
+
+        duration_s = max((window_end - self._pending_active_since).total_seconds(), 0.0)
+        _LOGGER.debug(
+            "LoadIQ pending duration check: duration=%.1fs threshold=%.1fs",
+            duration_s,
+            self._activation_confirm_s,
+        )
+        if duration_s < self._activation_confirm_s:
+            return None
+
+        energy_factor = sample_seconds / 3600.0
+        recent_net = recent["net_w"]
+        mean_power = float(recent_net.mean())
+        peak_power = float(recent_net.max())
+        energy_kwh = float(recent_net.sum() * energy_factor / 1000.0)
+
+        baseline_series = recent.get("net_baseline_w")
+        reference_power = float(baseline_series.iloc[0]) if baseline_series is not None else mean_power
+        tolerance = max(detection.spike_tolerance_w, detection.spike_tolerance_ratio * reference_power)
+        clamped_series = recent_net.clip(upper=reference_power + tolerance)
+        clamped_energy_kwh = float(clamped_series.sum() * energy_factor / 1000.0)
+        clamped_peak_w = float(clamped_series.max())
+
+        temp_series = recent.get("outdoor_temp_c")
+        if temp_series is not None:
+            temp_mean = temp_series.mean()
+            temperature_c = float(temp_mean) if pd.notna(temp_mean) else None
+        else:
+            temperature_c = None
+
+        return DetectedSegment(
+            start=self._pending_active_since,
+            end=recent.index[-1],
+            duration=pd.to_timedelta(duration_s, unit="s"),
+            mean_power_w=mean_power,
+            peak_power_w=peak_power,
+            energy_kwh=energy_kwh,
+            temperature_c=temperature_c,
+            spike_energy_kwh=0.0,
+            has_spike=False,
+            clamped_energy_kwh=clamped_energy_kwh,
+            clamped_peak_w=clamped_peak_w,
+        )
+
+    @property
+    def recent_runs_window(self) -> pd.Timedelta:
+        return self._recent_runs_window
+
+    def recent_segments(self, data: CoordinatorData) -> List[DetectedSegment]:
+        cutoff = data.window_end - self._recent_runs_window
+        return [seg for seg in data.segments if seg.end >= cutoff]
+
+    def find_segment_by_start(self, start: pd.Timestamp) -> Optional[DetectedSegment]:
+        if start.tzinfo is None:
+            start = start.tz_localize("UTC")
+        else:
+            start = start.tz_convert("UTC")
+        data = self.data
+        if not data:
+            return None
+        try:
+            tolerance = pd.to_timedelta(self._config.entities.house_power.aggregate_every) * 2
+        except (ValueError, TypeError):
+            tolerance = pd.Timedelta(minutes=2)
+        segments: List[DetectedSegment] = list(data.segments)
+        if data.active_segment and data.active_segment not in segments:
+            segments.append(data.active_segment)
+        for seg in segments:
+            delta = abs(seg.start - start)
+            if delta <= tolerance:
+                return seg
+        return None

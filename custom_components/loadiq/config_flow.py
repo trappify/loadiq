@@ -24,11 +24,25 @@ from .const import (
     CONF_INFLUX_URL,
     CONF_INFLUX_VERIFY_SSL,
     CONF_KNOWN_LOADS,
+    CONF_RECENT_RUNS_WINDOW_HOURS,
     CONF_OUTDOOR_SENSOR,
     DEFAULT_AGGREGATE_WINDOW,
+    DEFAULT_RECENT_RUNS_WINDOW_HOURS,
     DOMAIN,
     DOMAIN_TITLE,
 )
+
+
+def _hours_number_selector() -> selector.NumberSelector:
+    """Selector for configuring recent runs window."""
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=1,
+            step=1,
+            unit_of_measurement="h",
+            mode=selector.NumberSelectorMode.BOX,
+        )
+    )
 
 
 class LoadIQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -86,6 +100,10 @@ class LoadIQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_OUTDOOR_SENSOR: user_input.get(CONF_OUTDOOR_SENSOR),
                 CONF_KNOWN_LOADS: user_input.get(CONF_KNOWN_LOADS, []),
             }
+            self._data[CONF_RECENT_RUNS_WINDOW_HOURS] = user_input.get(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                self._data.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
             return self._create_entry()
 
         sensor_selector = selector.EntitySelector(
@@ -101,19 +119,24 @@ class LoadIQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else vol.Optional(CONF_OUTDOOR_SENSOR)
         )
 
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_HOUSE_SENSOR,
-                    default=existing.get(CONF_HOUSE_SENSOR),
-                ): sensor_selector,
-                outdoor_field: sensor_selector,
-                vol.Optional(
-                    CONF_KNOWN_LOADS,
-                    default=existing.get(CONF_KNOWN_LOADS, []),
-                ): multi_sensor_selector,
-            }
-        )
+        schema_dict: dict = {
+            vol.Required(
+                CONF_HOUSE_SENSOR,
+                default=existing.get(CONF_HOUSE_SENSOR),
+            ): sensor_selector,
+            outdoor_field: sensor_selector,
+            vol.Optional(
+                CONF_KNOWN_LOADS,
+                default=existing.get(CONF_KNOWN_LOADS, []),
+            ): multi_sensor_selector,
+        }
+        schema_dict[
+            vol.Optional(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                default=self._data.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
+        ] = _hours_number_selector()
+        schema = vol.Schema(schema_dict)
         return self.async_show_form(
             step_id="homeassistant",
             data_schema=schema,
@@ -140,6 +163,10 @@ class LoadIQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_KNOWN_LOADS: user_input.get(CONF_KNOWN_LOADS, []),
                 CONF_AGGREGATE_WINDOW: user_input.get(CONF_AGGREGATE_WINDOW, DEFAULT_AGGREGATE_WINDOW),
             }
+            self._data[CONF_RECENT_RUNS_WINDOW_HOURS] = user_input.get(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                self._data.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
             return self._create_entry()
 
         text_selector = selector.TextSelector()
@@ -167,47 +194,53 @@ class LoadIQConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else vol.Optional(CONF_OUTDOOR_SENSOR)
         )
 
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_INFLUX_URL,
-                    default=existing_influx.get(CONF_INFLUX_URL, "http://localhost:8086"),
-                ): url_selector,
-                vol.Required(
-                    CONF_INFLUX_TOKEN,
-                    default=existing_influx.get(CONF_INFLUX_TOKEN),
-                ): password_selector,
-                vol.Required(
-                    CONF_INFLUX_ORG,
-                    default=existing_influx.get(CONF_INFLUX_ORG),
-                ): text_selector,
-                vol.Required(
-                    CONF_INFLUX_BUCKET,
-                    default=existing_influx.get(CONF_INFLUX_BUCKET),
-                ): text_selector,
-                vol.Optional(
-                    CONF_INFLUX_VERIFY_SSL,
-                    default=existing_influx.get(CONF_INFLUX_VERIFY_SSL, True),
-                ): bool_selector,
-                vol.Optional(
-                    CONF_INFLUX_TIMEOUT,
-                    default=existing_influx.get(CONF_INFLUX_TIMEOUT, 30),
-                ): number_selector,
-                vol.Optional(
-                    CONF_AGGREGATE_WINDOW,
-                    default=existing_entities.get(CONF_AGGREGATE_WINDOW, DEFAULT_AGGREGATE_WINDOW),
-                ): text_selector,
-                vol.Required(
-                    CONF_HOUSE_SENSOR,
-                    default=existing_entities.get(CONF_HOUSE_SENSOR),
-                ): sensor_selector,
-                outdoor_field: sensor_selector,
-                vol.Optional(
-                    CONF_KNOWN_LOADS,
-                    default=existing_entities.get(CONF_KNOWN_LOADS, []),
-                ): multi_sensor_selector,
-            }
-        )
+        schema_dict: dict = {
+            vol.Required(
+                CONF_INFLUX_URL,
+                default=existing_influx.get(CONF_INFLUX_URL, "http://localhost:8086"),
+            ): url_selector,
+            vol.Required(
+                CONF_INFLUX_TOKEN,
+                default=existing_influx.get(CONF_INFLUX_TOKEN),
+            ): password_selector,
+            vol.Required(
+                CONF_INFLUX_ORG,
+                default=existing_influx.get(CONF_INFLUX_ORG),
+            ): text_selector,
+            vol.Required(
+                CONF_INFLUX_BUCKET,
+                default=existing_influx.get(CONF_INFLUX_BUCKET),
+            ): text_selector,
+            vol.Optional(
+                CONF_INFLUX_VERIFY_SSL,
+                default=existing_influx.get(CONF_INFLUX_VERIFY_SSL, True),
+            ): bool_selector,
+            vol.Optional(
+                CONF_INFLUX_TIMEOUT,
+                default=existing_influx.get(CONF_INFLUX_TIMEOUT, 30),
+            ): number_selector,
+            vol.Optional(
+                CONF_AGGREGATE_WINDOW,
+                default=existing_entities.get(CONF_AGGREGATE_WINDOW, DEFAULT_AGGREGATE_WINDOW),
+            ): text_selector,
+            vol.Required(
+                CONF_HOUSE_SENSOR,
+                default=existing_entities.get(CONF_HOUSE_SENSOR),
+            ): sensor_selector,
+            outdoor_field: sensor_selector,
+            vol.Optional(
+                CONF_KNOWN_LOADS,
+                default=existing_entities.get(CONF_KNOWN_LOADS, []),
+            ): multi_sensor_selector,
+        }
+        schema_dict[
+            vol.Optional(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                default=self._data.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
+        ] = _hours_number_selector()
+
+        schema = vol.Schema(schema_dict)
         return self.async_show_form(
             step_id="influx",
             data_schema=schema,
@@ -258,6 +291,10 @@ class LoadIQOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_OUTDOOR_SENSOR: user_input.get(CONF_OUTDOOR_SENSOR),
                 CONF_KNOWN_LOADS: user_input.get(CONF_KNOWN_LOADS, []),
             }
+            new_config[CONF_RECENT_RUNS_WINDOW_HOURS] = user_input.get(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                config.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
             self.hass.config_entries.async_update_entry(self._config_entry, options=new_config)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)
             return self.async_create_entry(title="", data={})
@@ -269,13 +306,19 @@ class LoadIQOptionsFlowHandler(config_entries.OptionsFlow):
             else vol.Optional(CONF_OUTDOOR_SENSOR)
         )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_HOUSE_SENSOR, default=ha_config.get(CONF_HOUSE_SENSOR)): sensor_selector,
-                outdoor_field: sensor_selector,
-                vol.Optional(CONF_KNOWN_LOADS, default=ha_config.get(CONF_KNOWN_LOADS, [])): multi_sensor_selector,
-            }
-        )
+        schema_dict: dict = {
+            vol.Required(CONF_HOUSE_SENSOR, default=ha_config.get(CONF_HOUSE_SENSOR)): sensor_selector,
+            outdoor_field: sensor_selector,
+            vol.Optional(CONF_KNOWN_LOADS, default=ha_config.get(CONF_KNOWN_LOADS, [])): multi_sensor_selector,
+        }
+        schema_dict[
+            vol.Optional(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                default=config.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
+        ] = _hours_number_selector()
+
+        schema = vol.Schema(schema_dict)
         return self.async_show_form(step_id="homeassistant", data_schema=schema)
 
     async def async_step_influx(self, user_input: Dict[str, Any] | None = None) -> FlowResult:
@@ -300,6 +343,7 @@ class LoadIQOptionsFlowHandler(config_entries.OptionsFlow):
         multi_sensor_selector = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor", multiple=True)
         )
+        hours_selector = _hours_number_selector()
         if user_input is not None:
             new_config = dict(config)
             new_config[CONF_INFLUX] = {
@@ -316,6 +360,10 @@ class LoadIQOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_KNOWN_LOADS: user_input.get(CONF_KNOWN_LOADS, []),
                 CONF_AGGREGATE_WINDOW: user_input.get(CONF_AGGREGATE_WINDOW, DEFAULT_AGGREGATE_WINDOW),
             }
+            new_config[CONF_RECENT_RUNS_WINDOW_HOURS] = user_input.get(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                config.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
             self.hass.config_entries.async_update_entry(self._config_entry, options=new_config)
             await self.hass.config_entries.async_reload(self._config_entry.entry_id)
             return self.async_create_entry(title="", data={})
@@ -327,20 +375,26 @@ class LoadIQOptionsFlowHandler(config_entries.OptionsFlow):
             else vol.Optional(CONF_OUTDOOR_SENSOR)
         )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_INFLUX_URL, default=influx_config.get(CONF_INFLUX_URL, "http://localhost:8086")): url_selector,
-                vol.Required(CONF_INFLUX_TOKEN, default=influx_config.get(CONF_INFLUX_TOKEN)): password_selector,
-                vol.Required(CONF_INFLUX_ORG, default=influx_config.get(CONF_INFLUX_ORG)): text_selector,
-                vol.Required(CONF_INFLUX_BUCKET, default=influx_config.get(CONF_INFLUX_BUCKET)): text_selector,
-                vol.Optional(CONF_INFLUX_VERIFY_SSL, default=influx_config.get(CONF_INFLUX_VERIFY_SSL, True)): bool_selector,
-                vol.Optional(CONF_INFLUX_TIMEOUT, default=influx_config.get(CONF_INFLUX_TIMEOUT, 30)): number_selector,
-                vol.Optional(CONF_AGGREGATE_WINDOW, default=entities.get(CONF_AGGREGATE_WINDOW, DEFAULT_AGGREGATE_WINDOW)): text_selector,
-                vol.Required(CONF_HOUSE_SENSOR, default=entities.get(CONF_HOUSE_SENSOR)): sensor_selector,
-                outdoor_field: sensor_selector,
-                vol.Optional(CONF_KNOWN_LOADS, default=entities.get(CONF_KNOWN_LOADS, [])): multi_sensor_selector,
-            }
-        )
+        schema_dict: dict = {
+            vol.Required(CONF_INFLUX_URL, default=influx_config.get(CONF_INFLUX_URL, "http://localhost:8086")): url_selector,
+            vol.Required(CONF_INFLUX_TOKEN, default=influx_config.get(CONF_INFLUX_TOKEN)): password_selector,
+            vol.Required(CONF_INFLUX_ORG, default=influx_config.get(CONF_INFLUX_ORG)): text_selector,
+            vol.Required(CONF_INFLUX_BUCKET, default=influx_config.get(CONF_INFLUX_BUCKET)): text_selector,
+            vol.Optional(CONF_INFLUX_VERIFY_SSL, default=influx_config.get(CONF_INFLUX_VERIFY_SSL, True)): bool_selector,
+            vol.Optional(CONF_INFLUX_TIMEOUT, default=influx_config.get(CONF_INFLUX_TIMEOUT, 30)): number_selector,
+            vol.Optional(CONF_AGGREGATE_WINDOW, default=entities.get(CONF_AGGREGATE_WINDOW, DEFAULT_AGGREGATE_WINDOW)): text_selector,
+            vol.Required(CONF_HOUSE_SENSOR, default=entities.get(CONF_HOUSE_SENSOR)): sensor_selector,
+            outdoor_field: sensor_selector,
+            vol.Optional(CONF_KNOWN_LOADS, default=entities.get(CONF_KNOWN_LOADS, [])): multi_sensor_selector,
+        }
+        schema_dict[
+            vol.Optional(
+                CONF_RECENT_RUNS_WINDOW_HOURS,
+                default=config.get(CONF_RECENT_RUNS_WINDOW_HOURS, DEFAULT_RECENT_RUNS_WINDOW_HOURS),
+            )
+        ] = hours_selector
+
+        schema = vol.Schema(schema_dict)
         return self.async_show_form(step_id="influx", data_schema=schema)
 
     def _current_config(self) -> Dict[str, Any]:

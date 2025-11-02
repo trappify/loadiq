@@ -26,6 +26,8 @@ class DetectedSegment:
     has_spike: bool = False
     clamped_energy_kwh: float = 0.0
     clamped_peak_w: float = 0.0
+    classification: str = "unknown"
+    confidence: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -40,6 +42,8 @@ class DetectedSegment:
             "has_spike": self.has_spike,
             "clamped_energy_kwh": self.clamped_energy_kwh,
             "clamped_peak_w": self.clamped_peak_w,
+            "classification": self.classification,
+            "confidence": self.confidence,
         }
 
 

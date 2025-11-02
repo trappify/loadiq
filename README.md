@@ -64,6 +64,9 @@ Relative shorthands work both in the WINDOW argument and the advanced flags (`--
 - The custom component lives in `custom_components/loadiq` and is already wired for HACS (see `hacs.json`). The config flow lets you pick between direct InfluxDB access and native Home Assistant sensors, with an options flow for edits.
 - Tests covering the config flow live in `tests/test_integration_config_flow.py`. Run the full suite with `.venv/bin/pytest` after making changes.
 - HACS is downloaded automatically during `scripts/ha up`/`reset`; finish setup via Settings → Devices & Services → “+ Add Integration” → HACS. The integration ships the LoadIQ library in the component itself so no extra pip install is needed.
+- The dev stack now vendors the `remote_homeassistant` integration. To mirror real sensors into the sandbox, uncomment the `remote_homeassistant:` include in `ha_dev/configuration.yaml`, then edit `ha_dev/config/remote_homeassistant.yaml` and replace the empty `instances: []` with your remote host/access token. You can reference secrets via `!secret` (define them in `ha_dev/config/secrets.yaml`; see `secrets.example.yaml` for placeholders). Include only the entities you need, e.g. `sensor.total_power` or `sensor.ev_charger`, and they will show up in the dev UI and recorder for LoadIQ.
+- Real-time detection now exposes a confidence score and keeps a rolling list of classified runs via the `sensor.loadiq_recent_runs` entity. When the heuristics mislabel a run, call the `loadiq.mark_segment` service (Developer Tools → Actions) to tag the segment as `heatpump` or `other`, or use the one-click helpers `loadiq.mark_current_active` / `loadiq.mark_current_inactive` while a run is flagged. LoadIQ persists the feedback and adapts future classifications automatically.
+- New in the integration: the binary sensor now reports a confidence flag (“pending” vs “confirmed”), and a `sensor.loadiq_recent_runs` entity lists detected runs in a configurable rolling window (defaults to 3 h). Adjust the window via the “Recent runs window (hours)” field in the config/option flow if you want a longer or shorter summary.
 
 Tab completion is available via Click. Example for Bash (add to `.bashrc`):
 
@@ -96,6 +99,11 @@ The core fields are:
   - `spike_tolerance_ratio` / `spike_tolerance_w` / `spike_min_duration_s` control how sensitive the detector is to short spikes within a run.
 
 See `src/loadiq/config.py` for the full schema.
+
+### Training the detector
+
+- The Home Assistant integration surfaces detected runs with classification confidence. Use the `loadiq.mark_segment` service (Developer Tools → Actions) or the quick `loadiq.mark_current_active` / `loadiq.mark_current_inactive` helpers to label a run (heat pump vs other) straight from Home Assistant – LoadIQ stores the feedback and updates future classifications without editing any files.
+- `sensor.loadiq_recent_runs` lists the runs inside your configured window and mirrors the same confidence information so you can review what the detector saw during the last few hours.
 
 ## Roadmap
 - [ ] Implement richer feature engineering and ML-based heat pump classification.

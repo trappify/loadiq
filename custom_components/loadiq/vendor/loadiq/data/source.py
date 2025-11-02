@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import abc
 from datetime import datetime, timezone
-from typing import Mapping, Optional
+from typing import Optional
 
 import pandas as pd
 
@@ -44,13 +44,24 @@ class InfluxDBSource(PowerDataSource):
         window = aggregate or entity.aggregate_every
         start_iso = start.astimezone(timezone.utc).isoformat()
         end_iso = end.astimezone(timezone.utc).isoformat()
+        alt_entity_id: Optional[str] = None
+        if "." in entity.entity_id:
+            _domain, candidate = entity.entity_id.split(".", 1)
+            if candidate:
+                alt_entity_id = candidate
+
+        entity_filter = f'r["entity_id"] == "{entity.entity_id}"'
+        if alt_entity_id and alt_entity_id != entity.entity_id:
+            entity_filter = (
+                f'(r["entity_id"] == "{entity.entity_id}" or r["entity_id"] == "{alt_entity_id}")'
+            )
+
         flux = f"""
 from(bucket: "{self._cfg.bucket}")
   |> range(start: {start_iso}, stop: {end_iso})
   |> filter(fn: (r) => r["_measurement"] == "{entity.measurement}")
   |> filter(fn: (r) => r["_field"] == "{entity.field}")
-  |> filter(fn: (r) => r["domain"] == "{entity.domain}")
-  |> filter(fn: (r) => r["entity_id"] == "{entity.entity_id}")
+  |> filter(fn: (r) => {entity_filter})
   |> aggregateWindow(every: {window}, fn: mean, createEmpty: false)
   |> yield(name: "mean")
 """
@@ -66,6 +77,11 @@ from(bucket: "{self._cfg.bucket}")
         query = self._format_flux(entity, start, end, aggregate)
         query_api = self._client.query_api()
         tables = query_api.query_data_frame(org=self._cfg.org, query=query)
+        import logging
+        logger = logging.getLogger("loadiq.InfluxDBSource")
+        logger.debug(
+            "Flux query for %s [%s -> %s]:\n%s", entity.entity_id, start, end, query
+        )
         if isinstance(tables, list):
             df = pd.concat(tables, ignore_index=True)
         else:

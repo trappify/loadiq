@@ -11,6 +11,7 @@ PLATFORMS: list[str] = ["sensor", "binary_sensor"]
 
 DATA_COORDINATOR = "coordinator"
 DATA_CONFIG = "config"
+DATA_STORAGE = "storage"
 
 UPDATE_INTERVAL = timedelta(minutes=1)
 LOOKBACK_WINDOW = timedelta(hours=3)
@@ -36,3 +37,8 @@ BACKEND_HOME_ASSISTANT = "homeassistant"
 BACKEND_INFLUXDB = "influxdb"
 
 DEFAULT_AGGREGATE_WINDOW = "10s"
+SERVICE_MARK_SEGMENT = "mark_segment"
+SERVICE_MARK_CURRENT_ACTIVE = "mark_current_active"
+SERVICE_MARK_CURRENT_INACTIVE = "mark_current_inactive"
+CONF_RECENT_RUNS_WINDOW_HOURS = "recent_runs_window_hours"
+DEFAULT_RECENT_RUNS_WINDOW_HOURS = 3

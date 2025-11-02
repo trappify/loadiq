@@ -17,7 +17,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    data = hass.data[DOMAIN][entry.entry_id]
+    data = hass.data[DOMAIN]["entries"][entry.entry_id]
     coordinator: LoadIQDataCoordinator = data[DATA_COORDINATOR]
     async_add_entities([LoadIQActiveBinarySensor(coordinator, entry)])
 
@@ -43,6 +43,8 @@ class LoadIQActiveBinarySensor(LoadIQEntity, BinarySensorEntity):
         attrs: dict[str, object] = {
             "window_start": data.window_start.isoformat(),
             "window_end": data.window_end.isoformat(),
+            "confidence": data.active_confidence,
+            "classification": "inactive",
         }
         segment = data.active_segment
         if segment:
@@ -50,6 +52,10 @@ class LoadIQActiveBinarySensor(LoadIQEntity, BinarySensorEntity):
                 {
                     "active_since": segment.start.isoformat(),
                     "expected_stop": segment.end.isoformat(),
+                    "classification": segment.classification,
+                    "confidence_score": segment.confidence,
                 }
             )
+        else:
+            attrs["confidence_score"] = 0.0
         return attrs

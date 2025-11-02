@@ -1,0 +1,33 @@
+mark_segment:
+  name: Mark segment
+  description: Label a detected segment to improve future classification.
+  fields:
+    entry_id:
+      description: Override the LoadIQ entry to update (optional if only one entry).
+      example: 01ABCDEF123456789
+    start:
+      required: false
+      description: ISO timestamp of the segment start to label. Leave empty to use the current or most recent run.
+      example: "2025-11-02T08:15:00+00:00"
+    label:
+      required: true
+      description: Classification to apply to the selected segment.
+      selector:
+        select:
+          options:
+            - heatpump
+            - other
+mark_current_active:
+  name: Confirm active run
+  description: Declare that the current detected run really is the heat pump.
+  fields:
+    entry_id:
+      description: Override the LoadIQ entry to update (optional if only one entry).
+      example: 01ABCDEF123456789
+mark_current_inactive:
+  name: Reject active run
+  description: Declare that the current detected run is not the heat pump.
+  fields:
+    entry_id:
+      description: Override the LoadIQ entry to update (optional if only one entry).
+      example: 01ABCDEF123456789

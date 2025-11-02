@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -22,8 +24,10 @@ from custom_components.loadiq.const import (
     CONF_INFLUX_URL,
     CONF_INFLUX_VERIFY_SSL,
     CONF_KNOWN_LOADS,
+    CONF_RECENT_RUNS_WINDOW_HOURS,
     CONF_OUTDOOR_SENSOR,
     DEFAULT_AGGREGATE_WINDOW,
+    DEFAULT_RECENT_RUNS_WINDOW_HOURS,
     DOMAIN,
 )
 
@@ -56,11 +60,13 @@ async def test_config_flow_homeassistant(hass: HomeAssistant) -> None:
         {
             CONF_HOUSE_SENSOR: "sensor.total_power",
             CONF_KNOWN_LOADS: ["sensor.heat_pump"],
+            CONF_RECENT_RUNS_WINDOW_HOURS: 4,
         },
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     data = result["data"]
     assert data[CONF_BACKEND] == BACKEND_HOME_ASSISTANT
+    assert data[CONF_RECENT_RUNS_WINDOW_HOURS] == 4
     ha_cfg = data[CONF_HOMEASSISTANT]
     assert ha_cfg[CONF_HOUSE_SENSOR] == "sensor.total_power"
     assert ha_cfg[CONF_KNOWN_LOADS] == ["sensor.heat_pump"]
@@ -93,11 +99,13 @@ async def test_config_flow_influx(hass: HomeAssistant) -> None:
             CONF_AGGREGATE_WINDOW: DEFAULT_AGGREGATE_WINDOW,
             CONF_HOUSE_SENSOR: "sensor.total_power",
             CONF_KNOWN_LOADS: [],
+            CONF_RECENT_RUNS_WINDOW_HOURS: 6,
         },
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     data = result["data"]
     assert data[CONF_BACKEND] == BACKEND_INFLUXDB
+    assert data[CONF_RECENT_RUNS_WINDOW_HOURS] == 6
     influx_cfg = data[CONF_INFLUX]
     assert influx_cfg[CONF_INFLUX_URL] == "http://localhost:8086"
     assert influx_cfg[CONF_INFLUX_BUCKET] == "bucket"
@@ -133,6 +141,7 @@ async def test_options_flow_homeassistant(hass: HomeAssistant) -> None:
                 CONF_HOUSE_SENSOR: "sensor.total_power",
                 CONF_KNOWN_LOADS: [],
             },
+            CONF_RECENT_RUNS_WINDOW_HOURS: DEFAULT_RECENT_RUNS_WINDOW_HOURS,
         },
     )
     entry.add_to_hass(hass)
@@ -141,16 +150,35 @@ async def test_options_flow_homeassistant(hass: HomeAssistant) -> None:
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "homeassistant"
 
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {
-            CONF_HOUSE_SENSOR: "sensor.total_power",
-            CONF_KNOWN_LOADS: ["sensor.heat_pump"],
-        },
-    )
+    with patch.object(
+        hass.config_entries,
+        "async_update_entry",
+        wraps=hass.config_entries.async_update_entry,
+    ) as mock_update:
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_HOUSE_SENSOR: "sensor.total_power",
+                CONF_KNOWN_LOADS: ["sensor.heat_pump"],
+                CONF_RECENT_RUNS_WINDOW_HOURS: 5,
+            },
+        )
+        await hass.async_block_till_done()
+    option_payloads = [
+        kwargs.get("options")
+        for _, kwargs in mock_update.call_args_list
+        if isinstance(kwargs.get("options"), dict)
+    ]
+    assert option_payloads
+    new_options = next((payload for payload in option_payloads if payload), option_payloads[-1])
+    await hass.async_block_till_done()
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {}
-    assert entry.data[CONF_HOMEASSISTANT][CONF_KNOWN_LOADS] == ["sensor.heat_pump"]
+    updated_entry = hass.config_entries.async_get_entry(entry.entry_id)
+    assert updated_entry is not None
+    config = new_options or updated_entry.options or updated_entry.data
+    assert config[CONF_HOMEASSISTANT][CONF_KNOWN_LOADS] == ["sensor.heat_pump"]
+    assert config[CONF_RECENT_RUNS_WINDOW_HOURS] == 5
 
 
 async def test_options_flow_influx(hass: HomeAssistant) -> None:
@@ -172,6 +200,7 @@ async def test_options_flow_influx(hass: HomeAssistant) -> None:
                 CONF_KNOWN_LOADS: [],
                 CONF_AGGREGATE_WINDOW: DEFAULT_AGGREGATE_WINDOW,
             },
+            CONF_RECENT_RUNS_WINDOW_HOURS: DEFAULT_RECENT_RUNS_WINDOW_HOURS,
         },
     )
     entry.add_to_hass(hass)
@@ -180,21 +209,40 @@ async def test_options_flow_influx(hass: HomeAssistant) -> None:
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "influx"
 
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {
-            CONF_INFLUX_URL: "http://localhost:8086",
-            CONF_INFLUX_TOKEN: "token-2",
-            CONF_INFLUX_ORG: "org",
-            CONF_INFLUX_BUCKET: "bucket",
-            CONF_INFLUX_VERIFY_SSL: False,
-            CONF_INFLUX_TIMEOUT: 45,
-            CONF_AGGREGATE_WINDOW: "30s",
-            CONF_HOUSE_SENSOR: "sensor.total_power",
-            CONF_KNOWN_LOADS: [],
-        },
-    )
+    with patch.object(
+        hass.config_entries,
+        "async_update_entry",
+        wraps=hass.config_entries.async_update_entry,
+    ) as mock_update:
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_INFLUX_URL: "http://localhost:8086",
+                CONF_INFLUX_TOKEN: "token-2",
+                CONF_INFLUX_ORG: "org",
+                CONF_INFLUX_BUCKET: "bucket",
+                CONF_INFLUX_VERIFY_SSL: False,
+                CONF_INFLUX_TIMEOUT: 45,
+                CONF_AGGREGATE_WINDOW: "30s",
+                CONF_HOUSE_SENSOR: "sensor.total_power",
+                CONF_KNOWN_LOADS: [],
+                CONF_RECENT_RUNS_WINDOW_HOURS: 8,
+            },
+        )
+        await hass.async_block_till_done()
+    option_payloads = [
+        kwargs.get("options")
+        for _, kwargs in mock_update.call_args_list
+        if isinstance(kwargs.get("options"), dict)
+    ]
+    assert option_payloads
+    new_options = next((payload for payload in option_payloads if payload), option_payloads[-1])
+    await hass.async_block_till_done()
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {}
-    assert entry.data[CONF_INFLUX][CONF_INFLUX_TOKEN] == "token-2"
-    assert entry.data[CONF_ENTITIES][CONF_AGGREGATE_WINDOW] == "30s"
+    updated_entry = hass.config_entries.async_get_entry(entry.entry_id)
+    assert updated_entry is not None
+    config = new_options or updated_entry.options or updated_entry.data
+    assert config[CONF_INFLUX][CONF_INFLUX_TOKEN] == "token-2"
+    assert config[CONF_ENTITIES][CONF_AGGREGATE_WINDOW] == "30s"
+    assert config[CONF_RECENT_RUNS_WINDOW_HOURS] == 8

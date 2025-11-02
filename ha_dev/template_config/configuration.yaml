@@ -14,6 +14,9 @@ logger:
   logs:
     custom_components.loadiq: debug
 
+# Uncomment the line below to mirror sensors from a remote Home Assistant.
+# remote_homeassistant: !include remote_homeassistant.yaml
+
 input_number:
   main_power:
     name: Total Power
